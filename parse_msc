@@ -1,0 +1,184 @@
+#!/usr/bin/python3
+import sys
+from open_ext import open_ext
+
+opcodes = {
+    (0, 0):  ('BLBN',  None),
+    (0, 1):  ('NBNBN', 'A jump?'),
+    (0, 2):  ('N',     'A jump?'),
+    (0, 3):  ('N',     None),
+    (0, 4):  ('',      None),
+    (0, 5):  ('NB',    None),
+    (0, 6):  ('',      None),
+    (0, 7):  ('B',     None),
+    (0, 8):  ('S',     None),
+    (0, 9):  ('',      None),
+    (0, 10): ('B',     None),
+    (0, 11): ('',      None),
+    (0, 12): ('',      None),
+    (0, 13): ('',      None),
+    (0, 14): ('',      None),
+    (0, 15): ('',      None),
+    (0, 16): ('N',     None),
+    (0, 17): ('N',     None),
+    (0, 18): ('',      None),
+    (0, 19): ('',      None),
+    (0, 20): ('',      None),
+    (0, 22): ('B',     None),
+    (0, 23): ('N',     None),
+    (0, 32): ('2NBB',  None),
+    (0, 48): ('',      None),
+    (0, 49): ('',      None),
+    (0, 50): ('',      None),
+    (0, 51): ('N',     'A jump?'),
+    (0, 52): ('N',     None),
+    (0, 53): ('',      None),
+    (0, 54): ('B',     None),
+    (0, 55): ('B2N',   None),
+
+    (1, 0):  ('S',     'Set game title'),
+    (1, 1):  ('BS',    None), #parse 2nd arg as script if 1st arg == 3 or 10
+    (1, 2):  ('N',     None),
+    (1, 3):  ('L2S',   None),
+    (1, 4):  ('BS',    None),
+    (1, 5):  ('2N',    None),
+    (1, 6):  ('2N',    None),
+    (1, 7):  ('2N',    None),
+    (1, 8):  ('7N',    None),
+    (1, 9):  ('3SB',   None),
+    (1, 10): ('2N',    None),
+    (1, 11): ('2NS',   None),
+    (1, 12): ('BN',    None),
+    (1, 13): ('N2S',   None),
+    (1, 14): ('B4N',   None),
+    (1, 15): ('N',     None),
+    (1, 16): ('B3N',   None),
+    (1, 17): ('N',     None),
+    (1, 18): ('7N',    None),
+    (1, 19): ('5N',    None),
+    (1, 20): ('N',     None),
+    (1, 21): ('BS',    None),
+    (1, 22): ('N',     None),
+    (1, 23): ('2S',    None),
+    (1, 24): ('S',     None),
+    (1, 25): ('SN',    None),
+    (1, 26): ('BB',    None),
+    (1, 27): ('BN',    None),
+    (1, 28): ('B2N',   None),
+    (1, 29): ('B2N',   None),
+    (1, 30): ('2S',    None),
+    (1, 31): ('3S',    None),
+
+    (2, 0):  ('NS',    None),
+    (2, 1):  ('3N',    None),
+    (2, 2):  ('NB',    None),
+    (2, 3):  ('5N',    None),
+    (2, 4):  ('2N',    None),
+    (2, 5):  ('3N',    None),
+    (2, 6):  ('2N',    None),
+    (2, 7):  ('2N',    None),
+    (2, 8):  ('4N',    None),
+    (2, 9):  ('6N',    None),
+    (2, 10): ('3N',    None),
+    (2, 11): ('4N',    None),
+    (2, 12): ('4NB',   None),
+    (2, 13): ('2N',    None),
+    (2, 14): ('2N',    None),
+    (2, 15): ('2N',    None),
+    (2, 16): ('3N',    None),
+    (2, 17): ('3N',    None),
+    (2, 18): ('5NS',   None),
+    (2, 19): ('2N',    None),
+    (2, 20): ('NS3NB', None),
+    (2, 21): ('4N',    None),
+    (2, 22): ('NS4N',  None),
+    (2, 23): ('NB',    None),
+
+    (3, 0):  ('NSNB',  None),
+    (3, 1):  ('2NB',   None),
+    (3, 2):  ('N',     None),
+    (3, 3):  ('SB',    None),
+
+    (4, 0):  ('NBN',   None),
+    (4, 1):  ('NB',    None),
+    (4, 2):  ('NB',    None),
+    (4, 3):  ('2N',    None),
+    (4, 4):  ('2N',    None),
+
+    (5, 0):  ('NS',    None),
+    (5, 1):  ('8N',    None),
+    (5, 2):  ('7N',    None),
+    (5, 3):  ('2N',    None),
+    (5, 4):  ('2N',    None),
+    (5, 5):  ('B',     None),
+    (5, 6):  ('',      None),
+    (5, 7):  ('BB',    None),
+
+    (6, 0):  ('SBN',   None),
+    (6, 1):  ('N',     None),
+    (6, 2):  ('S',     None),
+    (6, 3):  ('',      None),
+    (6, 4):  ('NS',    None),
+    (6, 5):  ('NB',    None),
+    (6, 6):  ('N',     None),
+    (6, 7):  ('',      None),
+    (6, 8):  ('N',     None),
+    (6, 9):  ('N',     None),
+    (6, 10): ('S',     None),
+    (6, 11): ('B2N',   None),
+    (6, 12): ('4N',    None),
+    (6, 13): ('',      None),
+    (6, 14): ('2N',    None),
+}
+
+def parse_params(fmt, fh):
+    i = 0
+    while i < len(fmt):
+        repetitions = 1
+        type = fmt[i]
+        if type >= '0' and type <= '9':
+            repetitions = int(type)
+            i += 1
+            type = fmt[i]
+        for _ in range(repetitions):
+            if type == 'N':
+                yield [fh.read_u8(), fh.read_u32_le()]
+            elif type == 'B':
+                yield fh.read_u8()
+            elif type == 'L':
+                yield fh.read_u32_le()
+            elif type == 'S':
+                yield fh.read(fh.read_u32_le()).decode('cp932')
+            else:
+                raise NotImplementedException()
+        i += 1
+
+def parse_script(path):
+    with open_ext(path, 'rb') as fh:
+        fh.skip(2)
+        script_start = fh.read_u32_le()
+        fh.seek(script_start)
+
+        while not fh.eof():
+            opcode = (fh.read_u8(), fh.read_u8())
+
+            if opcode not in opcodes:
+                raise NotImplementedError('Unknown opcode: %s' % (opcode,))
+
+            params_fmt, title = opcodes[opcode]
+            try:
+                params = list(parse_params(params_fmt, fh))
+            except:
+                print('Error while parsing opcode %s' % (opcode,))
+                raise
+
+            if title:
+                print('%s %s with parameters: %s' % (opcode, title, params))
+            else:
+                print('%s unknown opcode with mysterious parameters: %s' % (opcode, params))
+
+def main():
+    parse_script(sys.argv[1])
+
+if __name__ == '__main__':
+    main()
