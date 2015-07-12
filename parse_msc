@@ -105,7 +105,7 @@ opcodes = {
     (4, 3):  ('2N',    None),
     (4, 4):  ('2N',    None),
 
-    (5, 0):  ('NS',    None),
+    (5, 0):  ('NS',    'Show text'),
     (5, 1):  ('8N',    None),
     (5, 2):  ('7N',    None),
     (5, 3):  ('2N',    None),
@@ -114,9 +114,9 @@ opcodes = {
     (5, 6):  ('',      None),
     (5, 7):  ('BB',    None),
 
-    (6, 0):  ('SBN',   None),
+    (6, 0):  ('SBN',   'Change BGM?'),
     (6, 1):  ('N',     None),
-    (6, 2):  ('S',     None),
+    (6, 2):  ('S',     'Play video?'),
     (6, 3):  ('',      None),
     (6, 4):  ('NS',    None),
     (6, 5):  ('NB',    None),
