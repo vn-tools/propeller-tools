@@ -8,7 +8,7 @@ import open_ext
 
 Entry = types.SimpleNamespace
 
-def extract_mpk(src_path, dst_dir):
+def unpack_mpk(src_path, dst_dir):
     os.makedirs(dst_dir, exist_ok=True)
 
     with open_ext.open_ext(src_path, 'rb') as src_fh:
@@ -44,10 +44,26 @@ def extract_mpk(src_path, dst_dir):
             with open(os.path.join(dst_dir, entry.name), 'wb') as dst_fh:
                 dst_fh.write(data)
 
+def pack_mpk(src_dir, dst_path):
+    raise NotImplementedError()
+
+def parse_args():
+    import argparse
+    parser = argparse.ArgumentParser(description='Pack or unpack MPK archives')
+    parser.add_argument('input', metavar='INPUT', nargs='?')
+    parser.add_argument('output', metavar='OUTPUT', nargs='?')
+
+    group = parser.add_mutually_exclusive_group(required=True)
+    group.add_argument('-p', '--pack', action='store_true', help='pack INPUT directory to OUTPUT MPK file')
+    group.add_argument('-u', '--unpack', action='store_true', help='unpack INPUT MPK file to OUTPUT directory')
+    return parser.parse_args()
+
 def main():
-    path = sys.argv[1]
-    dst_dir = os.path.basename(path) + '~'
-    extract_mpk(path, dst_dir)
+    args = parse_args()
+    if args.unpack:
+        unpack_mpk(args.input, args.output)
+    else:
+        pack_mpk(args.input, args.output)
 
 if __name__ == '__main__':
     main()
