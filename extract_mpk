@@ -1,0 +1,53 @@
+#!/usr/bin/python3
+import os
+import struct
+import sys
+import types
+
+import open_ext
+
+Entry = types.SimpleNamespace
+
+def extract_mpk(src_path, dst_dir):
+    os.makedirs(dst_dir, exist_ok=True)
+
+    with open_ext.open_ext(src_path, 'rb') as src_fh:
+        #read file table
+        table_offset = src_fh.read_u32_le()
+        entry_count = src_fh.read_u32_le()
+        src_fh.seek(table_offset)
+        entries = []
+        for i in range(entry_count):
+            entry = Entry(
+                name = src_fh.read(32),
+                offset = src_fh.read_u32_le(),
+                size = src_fh.read_u32_le())
+            entries.append(entry)
+
+        #unobfuscate
+        key_u8 = entries[0].name[31]
+        key_u32 = struct.unpack('I', bytes([key_u8] * 4))[0]
+        for entry in entries:
+            name = u''
+            for i in range(32):
+                name += chr(entry.name[i] ^ key_u8)
+            if name[0] == '\\':
+                name = name[1:]
+            name = name[0:name.index('\0')]
+            entry.name = name
+            entry.offset ^= key_u32
+            entry.size ^= key_u32
+
+        for entry in entries:
+            src_fh.seek(entry.offset)
+            data = src_fh.read(entry.size)
+            with open(os.path.join(dst_dir, entry.name), 'wb') as dst_fh:
+                dst_fh.write(data)
+
+def main():
+    path = sys.argv[1]
+    dst_dir = os.path.basename(path) + '~'
+    extract_mpk(path, dst_dir)
+
+if __name__ == '__main__':
+    main()
