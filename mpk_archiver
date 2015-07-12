@@ -38,11 +38,14 @@ def unpack_mpk(src_path, dst_dir):
             entry.offset ^= key_u32
             entry.size ^= key_u32
 
+        #extract
         for entry in entries:
             src_fh.seek(entry.offset)
             data = src_fh.read(entry.size)
-            with open(os.path.join(dst_dir, entry.name), 'wb') as dst_fh:
+            dst_path = os.path.join(dst_dir, entry.name)
+            with open(dst_path, 'wb') as dst_fh:
                 dst_fh.write(data)
+                print('Unpacked %s' % dst_path)
 
 def pack_mpk(src_dir, dst_path):
     raise NotImplementedError()
