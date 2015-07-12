@@ -160,6 +160,7 @@ def parse_script(path):
         fh.seek(script_start)
 
         while not fh.eof():
+            pos = fh.tell()
             opcode = (fh.read_u8(), fh.read_u8())
 
             if opcode not in opcodes:
@@ -173,9 +174,9 @@ def parse_script(path):
                 raise
 
             if title:
-                print('%s %s with parameters: %s' % (opcode, title, params))
+                print('%08d %s %s with parameters: %s' % (pos, opcode, title, params))
             else:
-                print('%s unknown opcode with mysterious parameters: %s' % (opcode, params))
+                print('%08d %s unknown opcode with mysterious parameters: %s' % (pos, opcode, params))
 
 def main():
     parse_script(sys.argv[1])
