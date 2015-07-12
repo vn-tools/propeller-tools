@@ -153,14 +153,39 @@ def read_params(fh, fmt):
             elif type == 'S':
                 yield fh.read(fh.read_u32_le()).decode('cp932')
             else:
-                raise NotImplementedException()
+                raise NotImplementedError()
+        i += 1
+
+def write_params(fh, fmt, params):
+    i = 0
+    while i < len(fmt):
+        repetitions = 1
+        type = fmt[i]
+        if type >= '0' and type <= '9':
+            repetitions = int(type)
+            i += 1
+            type = fmt[i]
+        for _ in range(repetitions):
+            if type == 'N':
+                fh.write_u8(params.pop(0))
+                fh.write_i32_le(params.pop(0))
+            elif type == 'B':
+                fh.write_u8(params.pop(0))
+            elif type == 'L':
+                fh.write_u32_le(params.pop(0))
+            elif type == 'S':
+                str = params.pop(0).encode('cp932')
+                fh.write_u32_le(len(str))
+                fh.write(str)
+            else:
+                raise NotImplementedError(type)
         i += 1
 
 def decompile_msc(src_path, dst_path):
     with \
     open_ext(src_path, 'rb') as src_fh, \
     open_ext(dst_path, 'w') as dst_fh:
-        src_fh.skip(2)
+        dst_fh.write(json.dumps(struct.unpack('BB', src_fh.read(2))) + '\n')
         script_start = src_fh.read_u32_le()
         bindata_size = script_start - src_fh.tell()
         dst_fh.write(json.dumps(struct.unpack(
@@ -173,7 +198,7 @@ def decompile_msc(src_path, dst_path):
             if opcode not in opcodes:
                 raise NotImplementedError('Unknown opcode: %s' % (opcode,))
 
-            params_fmt, title = opcodes[opcode]
+            params_fmt, _ = opcodes[opcode]
             try:
                 params = list(read_params(src_fh, params_fmt))
             except:
@@ -189,7 +214,22 @@ def compile_msc(src_path, dst_path):
     with \
     open_ext(src_path, 'r') as src_fh, \
     open_ext(dst_path, 'wb') as dst_fh:
-        raise NotImplementedError()
+        dst_fh.write(struct.pack('BB', *json.loads(src_fh.readline())))
+        bindata = json.loads(src_fh.readline())
+        dst_fh.write_u32_le(6 + len(bindata))
+        dst_fh.write(struct.pack(str(len(bindata)) + 'B', *bindata))
+
+        for line in src_fh.readlines():
+            pos, opcode0, opcode1, params = line.split(' ', 3)
+            opcode = (int(opcode0), int(opcode1))
+            params = json.loads(params)
+
+            if opcode not in opcodes:
+                raise NotImplementedError('Unknown opcode: %s' % (opcode,))
+
+            params_fmt, _ = opcodes[opcode]
+            dst_fh.write(struct.pack('BB', *opcode))
+            write_params(dst_fh, params_fmt, params)
 
 def parse_args():
     import argparse
