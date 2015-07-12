@@ -8,6 +8,9 @@ import open_ext
 
 Entry = types.SimpleNamespace
 
+def make_u32_key(u8_key):
+    return struct.unpack('I', bytes([u8_key] * 4))[0]
+
 def unpack_mpk(src_path, dst_dir):
     os.makedirs(dst_dir, exist_ok=True)
 
@@ -26,7 +29,7 @@ def unpack_mpk(src_path, dst_dir):
 
         #unobfuscate
         key_u8 = entries[0].name[31]
-        key_u32 = struct.unpack('I', bytes([key_u8] * 4))[0]
+        key_u32 = make_u32_key(key_u8)
         for entry in entries:
             name = u''
             for i in range(32):
@@ -47,8 +50,48 @@ def unpack_mpk(src_path, dst_dir):
                 dst_fh.write(data)
                 print('Unpacked %s' % dst_path)
 
-def pack_mpk(src_dir, dst_path):
-    raise NotImplementedError()
+def pack_mpk(src_dir, dst_path, key_u8=0x58):
+    #prepare initial entries from file system
+    entries = []
+    for root, dirs, files in os.walk(src_dir):
+        for file in sorted(files):
+            path = os.path.join(root, file)
+            entry = Entry(
+                name = '\\' + os.path.relpath(path, src_dir),
+                size = os.path.getsize(path),
+                offset = 0,
+                original_path = path)
+            entries.append(entry)
+
+    #calculate offsets
+    current_offset = 8
+    for entry in entries:
+        entry.offset = current_offset
+        current_offset += entry.size
+    table_offset = current_offset
+
+    #obfuscate
+    key_u32 = make_u32_key(key_u8)
+    for entry in entries:
+        name_bytes = (entry.name.encode('ascii') + b"\x00" * 32)[0:32]
+        entry.name = struct.pack('32B', *[i ^ key_u8 for i in name_bytes])
+        entry.offset ^= key_u32
+        entry.size ^= key_u32
+
+    #dump entries to mpk file
+    with open_ext.open_ext(dst_path, 'wb') as dst_fh:
+        dst_fh.write_u32_le(table_offset)
+        dst_fh.write_u32_le(len(entries))
+        for entry in entries:
+            with open(entry.original_path, 'rb') as src_fh:
+                assert(dst_fh.tell() == entry.offset ^ key_u32)
+                dst_fh.write(src_fh.read())
+                print('Packed %s' % entry.original_path)
+        assert(dst_fh.tell() == table_offset)
+        for entry in entries:
+            dst_fh.write(entry.name)
+            dst_fh.write_u32_le(entry.offset)
+            dst_fh.write_u32_le(entry.size)
 
 def parse_args():
     import argparse
