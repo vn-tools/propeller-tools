@@ -34,6 +34,15 @@ class open_ext:
     def read_until_end(self):
         return self.file.read()
 
+    def read_i8(self):
+        return struct.unpack('b', self.file.read(1))[0]
+
+    def read_i16_le(self):
+        return struct.unpack('<h', self.file.read(2))[0]
+
+    def read_i32_le(self):
+        return struct.unpack('<i', self.file.read(4))[0]
+
     def read_u8(self):
         return struct.unpack('B', self.file.read(1))[0]
 
@@ -42,6 +51,15 @@ class open_ext:
 
     def read_u32_le(self):
         return struct.unpack('<I', self.file.read(4))[0]
+
+    def write_i8(self, x):
+        self.file.write(struct.pack('b', x))
+
+    def write_i16_le(self, x):
+        self.file.write(struct.pack('<h', x))
+
+    def write_i32_le(self, x):
+        self.file.write(struct.pack('<i', x))
 
     def write_u8(self, x):
         self.file.write(struct.pack('B', x))

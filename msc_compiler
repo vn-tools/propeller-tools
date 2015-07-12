@@ -142,7 +142,7 @@ def parse_params(fmt, fh):
             type = fmt[i]
         for _ in range(repetitions):
             if type == 'N':
-                yield [fh.read_u8(), fh.read_u32_le()]
+                yield [fh.read_u8(), fh.read_i32_le()]
             elif type == 'B':
                 yield fh.read_u8()
             elif type == 'L':
