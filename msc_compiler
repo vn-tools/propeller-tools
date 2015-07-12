@@ -183,7 +183,8 @@ def write_params(fh, fmt, params):
         i += 1
 
 def decompile_msc(src_path, dst_path):
-    os.makedirs(os.path.dirname(dst_path), exist_ok=True)
+    if os.path.dirname(dst_path):
+        os.makedirs(os.path.dirname(dst_path), exist_ok=True)
 
     with \
     open_ext(src_path, 'rb') as src_fh, \
@@ -214,7 +215,8 @@ def decompile_msc(src_path, dst_path):
                 json.dumps(params, ensure_ascii=False)))
 
 def compile_msc(src_path, dst_path):
-    os.makedirs(os.path.dirname(dst_path), exist_ok=True)
+    if os.path.dirname(dst_path):
+        os.makedirs(os.path.dirname(dst_path), exist_ok=True)
 
     with \
     open_ext(src_path, 'r') as src_fh, \
