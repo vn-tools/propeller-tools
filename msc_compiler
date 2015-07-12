@@ -1,5 +1,7 @@
 #!/usr/bin/python3
 import sys
+import json
+import struct
 from open_ext import open_ext
 
 opcodes = {
@@ -131,7 +133,7 @@ opcodes = {
     (6, 14): ('2N',    None),
 }
 
-def parse_params(fmt, fh):
+def read_params(fh, fmt):
     i = 0
     while i < len(fmt):
         repetitions = 1
@@ -142,7 +144,8 @@ def parse_params(fmt, fh):
             type = fmt[i]
         for _ in range(repetitions):
             if type == 'N':
-                yield [fh.read_u8(), fh.read_i32_le()]
+                yield fh.read_u8()
+                yield fh.read_i32_le()
             elif type == 'B':
                 yield fh.read_u8()
             elif type == 'L':
@@ -153,33 +156,65 @@ def parse_params(fmt, fh):
                 raise NotImplementedException()
         i += 1
 
-def parse_script(path):
-    with open_ext(path, 'rb') as fh:
-        fh.skip(2)
-        script_start = fh.read_u32_le()
-        fh.seek(script_start)
+def decompile_msc(src_path, dst_path):
+    with \
+    open_ext(src_path, 'rb') as src_fh, \
+    open_ext(dst_path, 'w') as dst_fh:
+        src_fh.skip(2)
+        script_start = src_fh.read_u32_le()
+        bindata_size = script_start - src_fh.tell()
+        dst_fh.write(json.dumps(struct.unpack(
+            str(bindata_size) + 'B', src_fh.read(bindata_size))) + '\n')
 
-        while not fh.eof():
-            pos = fh.tell()
-            opcode = (fh.read_u8(), fh.read_u8())
+        while not src_fh.eof():
+            pos = src_fh.tell()
+            opcode = (src_fh.read_u8(), src_fh.read_u8())
 
             if opcode not in opcodes:
                 raise NotImplementedError('Unknown opcode: %s' % (opcode,))
 
             params_fmt, title = opcodes[opcode]
             try:
-                params = list(parse_params(params_fmt, fh))
+                params = list(read_params(src_fh, params_fmt))
             except:
-                print('Error while parsing opcode %s' % (opcode,))
+                print('Error while parsing opcode %s' % (opcode,),
+                    file=sys.stderr)
                 raise
 
-            if title:
-                print('%08d %s %s with parameters: %s' % (pos, opcode, title, params))
-            else:
-                print('%08d %s unknown opcode with mysterious parameters: %s' % (pos, opcode, params))
+            dst_fh.write('%08d %02d %02d %s\n' % (
+                pos, opcode[0], opcode[1],
+                json.dumps(params, ensure_ascii=False)))
+
+def compile_msc(src_path, dst_path):
+    with \
+    open_ext(src_path, 'r') as src_fh, \
+    open_ext(dst_path, 'wb') as dst_fh:
+        raise NotImplementedError()
+
+def parse_args():
+    import argparse
+
+    parser = argparse.ArgumentParser(
+        description='Compile or decompile MSC scripts')
+    parser.add_argument('input', metavar='INPUT', nargs='?')
+    parser.add_argument('output', metavar='OUTPUT', nargs='?')
+
+    group = parser.add_mutually_exclusive_group(required=True)
+    group.add_argument(
+        '-c', '--compile', action='store_true',
+        help='compile INPUT text file to OUTPUT MSC script')
+    group.add_argument(
+        '-d', '--decompile', action='store_true',
+        help='decompile INPUT MSC script to OUTPUT text file')
+
+    return parser.parse_args()
 
 def main():
-    parse_script(sys.argv[1])
+    args = parse_args()
+    if args.decompile:
+        decompile_msc(args.input, args.output)
+    else:
+        compile_msc(args.input, args.output)
 
 if __name__ == '__main__':
     main()
