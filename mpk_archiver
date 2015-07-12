@@ -96,8 +96,8 @@ def pack_mpk(src_dir, dst_path, key_u8=0x58):
 def parse_args():
     import argparse
     parser = argparse.ArgumentParser(description='Pack or unpack MPK archives')
-    parser.add_argument('input', metavar='INPUT', nargs='?')
-    parser.add_argument('output', metavar='OUTPUT', nargs='?')
+    parser.add_argument('input', metavar='INPUT')
+    parser.add_argument('output', metavar='OUTPUT')
 
     group = parser.add_mutually_exclusive_group(required=True)
     group.add_argument('-p', '--pack', action='store_true', help='pack INPUT directory to OUTPUT MPK file')
