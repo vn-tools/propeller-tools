@@ -191,12 +191,22 @@ def decompile_msc(src_path, dst_path):
     open_ext(dst_path, 'w') as dst_fh:
         dst_fh.write(json.dumps(struct.unpack('BB', src_fh.read(2))) + '\n')
         script_start = src_fh.read_u32_le()
-        bindata_size = script_start - src_fh.tell()
-        dst_fh.write(json.dumps(struct.unpack(
-            str(bindata_size) + 'B', src_fh.read(bindata_size))) + '\n')
 
+        data1 = []
+        data2 = []
+        for i in range(int(src_fh.read_u32_le() / 9)):
+            data1.append([
+                src_fh.read_u8(), src_fh.read_u32_le(), src_fh.read_u32_le()])
+        for i in range(int(src_fh.read_u32_le() / 9)):
+            data2.append([
+                src_fh.read_u8(), src_fh.read_u32_le(), src_fh.read_u32_le()])
+
+        dst_fh.write(json.dumps(data1) + '\n')
+        dst_fh.write(json.dumps(data2) + '\n')
+
+        assert(script_start == src_fh.tell())
         while not src_fh.eof():
-            pos = src_fh.tell()
+            pos = src_fh.tell() - script_start
             opcode = (src_fh.read_u8(), src_fh.read_u8())
 
             if opcode not in opcodes:
@@ -221,15 +231,28 @@ def compile_msc(src_path, dst_path):
     with \
     open_ext(src_path, 'r') as src_fh, \
     open_ext(dst_path, 'wb') as dst_fh:
+        offset_map = {}
+
         dst_fh.write(struct.pack('BB', *json.loads(src_fh.readline())))
-        bindata = json.loads(src_fh.readline())
-        dst_fh.write_u32_le(6 + len(bindata))
-        dst_fh.write(struct.pack(str(len(bindata)) + 'B', *bindata))
+        data1 = json.loads(src_fh.readline())
+        data2 = json.loads(src_fh.readline())
+        data1_pos = 2 + 4 + 4
+        data2_pos = 2 + 4 + 4 + len(data1) * 9 + 4
+        script_start = data2_pos + len(data2) * 9
+        dst_fh.write_u32_le(script_start)
+        dst_fh.write_u32_le(len(data1) * 9)
+        dst_fh.write(b'\0' * len(data1) * 9)
+        dst_fh.write_u32_le(len(data2) * 9)
+        dst_fh.write(b'\0' * len(data2) * 9)
 
         for line in src_fh.readlines():
             pos, opcode0, opcode1, params = line.split(' ', 3)
+            pos = int(pos)
             opcode = (int(opcode0), int(opcode1))
             params = json.loads(params)
+            actual_pos = dst_fh.tell() - script_start
+
+            offset_map[pos] = actual_pos
 
             if opcode not in opcodes:
                 raise NotImplementedError('Unknown opcode: %s' % (opcode,))
@@ -237,6 +260,17 @@ def compile_msc(src_path, dst_path):
             params_fmt, _ = opcodes[opcode]
             dst_fh.write(struct.pack('BB', *opcode))
             write_params(dst_fh, params_fmt, params)
+
+        dst_fh.seek(data1_pos)
+        for e in data1:
+            dst_fh.write_u8(e[0])
+            dst_fh.write_u32_le(e[1])
+            dst_fh.write_u32_le(offset_map[e[2]])
+        dst_fh.seek(data2_pos)
+        for e in data2:
+            dst_fh.write_u8(e[0])
+            dst_fh.write_u32_le(e[1])
+            dst_fh.write_u32_le(offset_map[e[2]])
 
 def parse_args():
     import argparse
