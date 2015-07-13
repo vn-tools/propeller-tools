@@ -176,8 +176,32 @@ def wrap_text(text, length, prefix=''):
             lines, MAX_LINES, text), file=sys.stderr)
     return text
 
+def apply_comma_workaround(text):
+    # Commas are used for furigana markup like so: <kanji,hiragana>. Sometimes
+    # they are used for other "hidden" stuff, too. To read them, the the game's
+    # scripting engine works more or less like this:
+    #
+    #     if (character == special opening bracket)
+    #         opened_bracket = true;
+    #     if (character == special closing bracket)
+    #         opened_bracket = false;
+    #     if (opened_bracket and character == comma)
+    #         do stuff...
+    #
+    # Now, the game is Japanese, so it doesn't contain western commas other
+    # than in this markup. **Turns out that the scripting engine has a bug**
+    # where "opened_bracket" variable is uninitialized, so when script sees
+    # ordinary comma, it thinks the bracket was already opened, and proceeds to
+    # do crazy things (which crash the game).
+
+    # Below is a workaround that forces the reset of "opened special bracket"
+    # variable. To do this, we use empty furigana markup that prints exactly
+    # nothing, but the closing bracket will reset the state for us.
+    if ',' in text:
+        return  '<,>' + text
+    return text
+
 def transform_dialog_text(text):
-    text = re.sub(',\s+', '、', text) #without it, the game crashes in backlog
     if re.search('「.*」', text):
         text = re.sub(
             '「(.*)」',
@@ -185,6 +209,7 @@ def transform_dialog_text(text):
             text)
     else:
         text = wrap_text(text, length=62)
+    text = apply_comma_workaround(text)
     return text
 
 def write_params(fh, fmt, params):
