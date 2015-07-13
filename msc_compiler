@@ -248,20 +248,17 @@ def decompile_msc(src_path, dst_path):
     with \
     open_ext(src_path, 'rb') as src_fh, \
     open_ext(dst_path, 'w') as dst_fh:
-        dst_fh.write(json.dumps(struct.unpack('BB', src_fh.read(2))) + '\n')
+        assert src_fh.read_u16_le() == 0
         script_start = src_fh.read_u32_le()
 
-        data1 = []
-        data2 = []
-        for i in range(int(src_fh.read_u32_le() / 9)):
-            data1.append([
-                src_fh.read_u8(), src_fh.read_u32_le(), src_fh.read_u32_le()])
-        for i in range(int(src_fh.read_u32_le() / 9)):
-            data2.append([
-                src_fh.read_u8(), src_fh.read_u32_le(), src_fh.read_u32_le()])
-
-        dst_fh.write(json.dumps(data1) + '\n')
-        dst_fh.write(json.dumps(data2) + '\n')
+        data = {}
+        for d in range(2):
+            data[d] = {}
+            for i in range(int(src_fh.read_u32_le() / 9)):
+                assert src_fh.read_u8() == 0
+                key = src_fh.read_u32_le()
+                pos = src_fh.read_u32_le()
+                data[d][pos] = key
 
         assert(script_start == src_fh.tell())
         while not src_fh.eof():
@@ -279,9 +276,12 @@ def decompile_msc(src_path, dst_path):
                     file=sys.stderr)
                 raise
 
-            dst_fh.write('%08d %02d %02d %s\n' % (
-                pos, opcode[0], opcode[1],
-                json.dumps(params, ensure_ascii=False)))
+            for d in data.keys():
+                if pos in data[d]:
+                    dst_fh.write('\nLABEL %d %d\n' % (d, data[d][pos]))
+
+            dst_fh.write('%02d %02d %s\n' % (
+                opcode[0], opcode[1], json.dumps(params, ensure_ascii=False)))
 
 def compile_msc(src_path, dst_path):
     if os.path.dirname(dst_path):
@@ -292,44 +292,49 @@ def compile_msc(src_path, dst_path):
     open_ext(dst_path, 'wb') as dst_fh:
         offset_map = {}
 
-        dst_fh.write(struct.pack('BB', *json.loads(src_fh.readline())))
-        data1 = json.loads(src_fh.readline())
-        data2 = json.loads(src_fh.readline())
-        data1_pos = 2 + 4 + 4
-        data2_pos = 2 + 4 + 4 + len(data1) * 9 + 4
-        script_start = data2_pos + len(data2) * 9
-        dst_fh.write_u32_le(script_start)
-        dst_fh.write_u32_le(len(data1) * 9)
-        dst_fh.write(b'\0' * len(data1) * 9)
-        dst_fh.write_u32_le(len(data2) * 9)
-        dst_fh.write(b'\0' * len(data2) * 9)
+        dst_fh.write_u16_le(0)
+        src_lines = [l.strip() for l in src_fh.readlines()]
 
-        for line in src_fh.readlines():
-            pos, opcode0, opcode1, params = line.split(' ', 3)
-            pos = int(pos)
-            opcode = (int(opcode0), int(opcode1))
-            params = json.loads(params)
+        labels = {}
+        labels_count = {}
+        for d in range(2):
+            labels[d] = {}
+            labels_count[d] = \
+                len([l for l in src_lines if l.startswith('LABEL %d' % d)])
+        labels_pos = {}
+        labels_pos[0] = 2 + 4 + 4
+        labels_pos[1] = 2 + 4 + 4 + labels_count[0] * 9 + 4
+        script_start = labels_pos[1] + labels_count[1] * 9
+        dst_fh.write_u32_le(script_start)
+        dst_fh.write_u32_le(labels_count[0] * 9)
+        dst_fh.write(b'\0' * labels_count[0] * 9)
+        dst_fh.write_u32_le(labels_count[1] * 9)
+        dst_fh.write(b'\0' * labels_count[1] * 9)
+
+        for line in src_lines:
             actual_pos = dst_fh.tell() - script_start
 
-            offset_map[pos] = actual_pos
+            if line.startswith('LABEL'):
+                _, type, number = line.split(' ')
+                labels[int(type)][int(number)] = actual_pos
+            elif line:
+                opcode0, opcode1, params = line.split(' ', 2)
+                opcode = (int(opcode0), int(opcode1))
+                params = json.loads(params)
 
-            if opcode not in opcodes:
-                raise NotImplementedError('Unknown opcode: %s' % (opcode,))
+                if opcode not in opcodes:
+                    raise NotImplementedError('Unknown opcode: %s' % (opcode,))
 
-            params_fmt, _ = opcodes[opcode]
-            dst_fh.write(struct.pack('BB', *opcode))
-            write_params(dst_fh, params_fmt, params)
+                params_fmt, _ = opcodes[opcode]
+                dst_fh.write(struct.pack('BB', *opcode))
+                write_params(dst_fh, params_fmt, params)
 
-        dst_fh.seek(data1_pos)
-        for e in data1:
-            dst_fh.write_u8(e[0])
-            dst_fh.write_u32_le(e[1])
-            dst_fh.write_u32_le(offset_map[e[2]])
-        dst_fh.seek(data2_pos)
-        for e in data2:
-            dst_fh.write_u8(e[0])
-            dst_fh.write_u32_le(e[1])
-            dst_fh.write_u32_le(offset_map[e[2]])
+        for d in labels.keys():
+            dst_fh.seek(labels_pos[d])
+            for type, pos in labels[d].items():
+                dst_fh.write_u8(0)
+                dst_fh.write_u32_le(type)
+                dst_fh.write_u32_le(pos)
 
 def parse_args():
     import argparse
