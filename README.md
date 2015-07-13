@@ -1,7 +1,8 @@
 propeller tools
 ---------------
 
-Tools for translating games based on propeller engine.
+Tools for translating games based on propeller engine.  
+**Tested on "Sukimazakura to Uso no Machi" only.**
 
 ### `mpk_archiver`
 
