@@ -205,11 +205,11 @@ def transform_dialog_text(text):
     if re.search('「.*」', text):
         text = re.sub(
             '「(.*)」',
-            lambda m: '「%s」' % wrap_text(m.group(1), length=60, prefix=' '),
+            lambda m: '「%s」' % apply_comma_workaround(wrap_text(m.group(1), length=60, prefix=' ')),
             text)
     else:
         text = wrap_text(text, length=62)
-    text = apply_comma_workaround(text)
+        text = apply_comma_workaround(text)
     return text
 
 def write_params(fh, fmt, params):
