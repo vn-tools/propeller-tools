@@ -312,22 +312,27 @@ def compile_msc(src_path, dst_path):
         dst_fh.write(b'\0' * labels_count[1] * 9)
 
         for line in src_lines:
-            actual_pos = dst_fh.tell() - script_start
+            try:
+                actual_pos = dst_fh.tell() - script_start
 
-            if line.startswith('LABEL'):
-                _, type, number = line.split(' ')
-                labels[int(type)][int(number)] = actual_pos
-            elif line:
-                opcode0, opcode1, params = line.split(' ', 2)
-                opcode = (int(opcode0), int(opcode1))
-                params = json.loads(params)
+                if line.startswith('LABEL'):
+                    _, type, number = line.split(' ')
+                    labels[int(type)][int(number)] = actual_pos
+                elif line:
+                    opcode0, opcode1, params = line.split(' ', 2)
+                    opcode = (int(opcode0), int(opcode1))
+                    params = json.loads(params)
 
-                if opcode not in opcodes:
-                    raise NotImplementedError('Unknown opcode: %s' % (opcode,))
+                    if opcode not in opcodes:
+                        raise NotImplementedError(
+                            'Unknown opcode: %s' % (opcode,))
 
-                params_fmt, _ = opcodes[opcode]
-                dst_fh.write(struct.pack('BB', *opcode))
-                write_params(dst_fh, params_fmt, params)
+                    params_fmt, _ = opcodes[opcode]
+                    dst_fh.write(struct.pack('BB', *opcode))
+                    write_params(dst_fh, params_fmt, params)
+            except Exception as e:
+                print('Error parsing line "%s"' % line, file=sys.stderr)
+                raise e
 
         for d in labels.keys():
             dst_fh.seek(labels_pos[d])
