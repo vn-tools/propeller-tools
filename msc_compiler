@@ -2,8 +2,16 @@
 import os
 import sys
 import json
+import re
 import struct
+import textwrap
 from open_ext import open_ext
+
+#B - byte
+#L - long
+#N - a pair of byte and long
+#S - string
+#D - dialog string, which gets special treatment (autowrapping, punctuation...)
 
 opcodes = {
     (0, 0):  ('BLBN',  None),
@@ -108,7 +116,7 @@ opcodes = {
     (4, 3):  ('2N',    None),
     (4, 4):  ('2N',    None),
 
-    (5, 0):  ('NS',    'Show text'),
+    (5, 0):  ('ND',    'Show text'),
     (5, 1):  ('8N',    None),
     (5, 2):  ('7N',    None),
     (5, 3):  ('2N',    None),
@@ -151,11 +159,33 @@ def read_params(fh, fmt):
                 yield fh.read_u8()
             elif type == 'L':
                 yield fh.read_u32_le()
-            elif type == 'S':
+            elif type in ('S', 'D'):
                 yield fh.read(fh.read_u32_le()).decode('cp932')
             else:
                 raise NotImplementedError()
         i += 1
+
+def wrap_text(text, length, prefix=''):
+    text = text.replace('_r', '\n')
+    text = textwrap.fill(text, length)
+    text = text.replace('\n', '_r' + prefix)
+    MAX_LINES = 2
+    lines = text.count('_r') + 1
+    if lines > MAX_LINES:
+        print('Warning: text too long (%d>%d max lines): "%s"' % (
+            lines, MAX_LINES, text), file=sys.stderr)
+    return text
+
+def transform_dialog_text(text):
+    text = re.sub(',\s+', '、', text) #without it, the game crashes in backlog
+    if re.search('「.*」', text):
+        text = re.sub(
+            '「(.*)」',
+            lambda m: '「%s」' % wrap_text(m.group(1), length=60, prefix=' '),
+            text)
+    else:
+        text = wrap_text(text, length=62)
+    return text
 
 def write_params(fh, fmt, params):
     i = 0
@@ -176,6 +206,10 @@ def write_params(fh, fmt, params):
                 fh.write_u32_le(params.pop(0))
             elif type == 'S':
                 str = params.pop(0).encode('cp932')
+                fh.write_u32_le(len(str))
+                fh.write(str)
+            elif type == 'D':
+                str = transform_dialog_text(params.pop(0)).encode('cp932')
                 fh.write_u32_le(len(str))
                 fh.write(str)
             else:
