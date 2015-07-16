@@ -25,12 +25,20 @@ Script (de)compiler. Creates text files that look like this:
 ...and lets you convert them back to the MSC files. After editing the script
 files, you need to compile the whole thing back into MPK archive.
 
-### Image editing
+### `mgr_converter`
 
-Upon request I can also implement an image converter. (There is also [the tool
-written by asmodean](http://asmodean.reverse.net/pages/exmpk.html), but I'm not
-sure it lets you convert images.)
+MGR image container packer and unpacker. One MGR can hold multiple bitmaps. The
+images appear to be simple BMP files, but **they contain actual alpha channel**
+which is quite rare for BMP file format, so be sure to pick an image editor
+that supports it.
 
 ### Proof it works
 
+Changing dialogs:
+
 ![2015-07-12-120022_1077x659_scrot](https://cloud.githubusercontent.com/assets/1045476/8637360/ecf2f7b8-288d-11e5-9a46-8935a9614b1e.png)
+
+Changing images (the choice of Lucky Star screencap to replace a menu item
+wasn't my brightest idea, but that's all I had at the moment):
+
+![2015-07-16-231035_194x197_scrot](https://cloud.githubusercontent.com/assets/1045476/8735288/fbd7a942-2c0f-11e5-86b8-ecd6973a4ba1.png)
