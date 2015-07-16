@@ -6,6 +6,8 @@ import types
 
 import open_ext
 
+Entry = types.SimpleNamespace
+
 def decompress(input, size_uncompressed):
     output = bytearray()
 
@@ -35,6 +37,56 @@ def decompress(input, size_uncompressed):
 
     return output
 
+def compress(input):
+    #since I see no benefits in struggling to implement anything better,
+    #the algorithm is simplified to mere RLE
+    output = bytearray()
+
+    def flush_buffer(buffer, output):
+        while buffer:
+            length = min(0x20, len(buffer))
+            output.append(length - 1)
+            output.extend(buffer[0:length])
+            buffer[0:length] = []
+
+    i = 0
+    buffer = bytearray()
+    while i < len(input):
+        c = input[i]
+        repetition_length = 1
+        for j in range(i + 1, len(input)):
+            if input[j] != c:
+                break
+            repetition_length += 1
+            if repetition_length >= 255 + 0b111:
+                break
+        i += repetition_length
+
+        if repetition_length > 3: #2+1 for the extra byte pushed for look behind
+            look_behind = 1
+            buffer.append(c)
+            repetition_length -= 1
+            flush_buffer(buffer, output)
+
+            assert repetition_length < 0b0000011111111111
+            assert look_behind < 0b0001111111111111
+            look_behind -= 1
+            look_behind_hi = look_behind >> 8
+            look_behind_lo = look_behind
+
+            repetition_length -= 2
+            if repetition_length >= 0b111:
+                output.append(0b111 << 5 | look_behind_hi)
+                output.append(repetition_length - 0b111)
+            else:
+                output.append(repetition_length << 5 | look_behind_hi)
+            output.append(look_behind_lo)
+        else:
+            buffer.extend([c] * repetition_length)
+    flush_buffer(buffer, output)
+
+    return output
+
 def unpack_mgr(src_path, dst_dir):
     os.makedirs(dst_dir, exist_ok=True)
 
@@ -59,8 +111,38 @@ def unpack_mgr(src_path, dst_dir):
                 dst_fh.write(buffer)
 
 def pack_mgr(src_dir, dst_path):
+    entries = []
+    for root, dirs, files in os.walk(src_dir):
+        for file in sorted(files):
+            path = os.path.join(root, file)
+            with open(path, 'rb') as src_fh:
+                content = src_fh.read()
+            entry = Entry(
+                compressed_data = compress(content),
+                size_original = len(content),
+                offset = 0)
+            entries.append(entry)
+
+    #calculate offsets
+    current_offset = 2
+    if len(entries) > 1:
+        current_offset += len(entries) * 4
+    for entry in entries:
+        entry.offset = current_offset
+        current_offset += len(entry.compressed_data) + 8
+
+    #dump entries to mgr file
     with open_ext.open_ext(dst_path, 'wb') as dst_fh:
-        raise NotImplementedError()
+        dst_fh.write_u16_le(len(entries))
+        if len(entries) > 1:
+            for entry in entries:
+                dst_fh.write_u32_le(entry.offset)
+
+        for entry in entries:
+            assert dst_fh.tell() == entry.offset
+            dst_fh.write_u32_le(entry.size_original)
+            dst_fh.write_u32_le(len(entry.compressed_data))
+            dst_fh.write(entry.compressed_data)
 
 def parse_args():
     import argparse
