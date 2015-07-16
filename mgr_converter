@@ -1,0 +1,84 @@
+#!/usr/bin/python3
+import os
+import struct
+import sys
+import types
+
+import open_ext
+
+def decompress(input, size_uncompressed):
+    output = bytearray()
+
+    i = 0
+    while i < len(input) and len(output) < size_uncompressed:
+        c = input[i]
+        i += 1
+
+        if c < 0x20:
+            length = c + 1
+            output.extend(input[i:i+length])
+            i += length
+        else:
+            length = c >> 5
+            if length == 0b111:
+                length += input[i]
+                i += 1
+            length += 2
+
+            look_behind = (c & 0b00011111) << 8
+            look_behind += input[i]
+            look_behind += 1
+            i += 1
+
+            for j in range(length):
+                output.append(output[-look_behind])
+
+    return output
+
+def unpack_mgr(src_path, dst_dir):
+    os.makedirs(dst_dir, exist_ok=True)
+
+    with open_ext.open_ext(src_path, 'rb') as src_fh:
+        entry_count = src_fh.read_u16_le()
+        offsets = []
+
+        if entry_count == 1:
+            offsets.append(src_fh.tell())
+        else:
+            for _ in range(entry_count):
+                offsets.append(src_fh.read_u32_le())
+
+        for i, offset in enumerate(offsets):
+            src_fh.seek(offset)
+            size_original = src_fh.read_u32_le()
+            size_compressed = src_fh.read_u32_le()
+            buffer = src_fh.read(size_compressed)
+            buffer = decompress(buffer, size_original)
+            target_path = os.path.join(dst_dir, '%04d.bmp' % i)
+            with open(target_path, 'wb') as dst_fh:
+                dst_fh.write(buffer)
+
+def pack_mgr(src_dir, dst_path):
+    with open_ext.open_ext(dst_path, 'wb') as dst_fh:
+        raise NotImplementedError()
+
+def parse_args():
+    import argparse
+    parser = argparse.ArgumentParser(description='Pack or unpack MGR image containers')
+    parser.add_argument('input', metavar='INPUT')
+    parser.add_argument('output', metavar='OUTPUT')
+
+    group = parser.add_mutually_exclusive_group(required=True)
+    group.add_argument('-p', '--pack', action='store_true', help='pack INPUT directory to OUTPUT MGR file')
+    group.add_argument('-u', '--unpack', action='store_true', help='unpack INPUT MGR file to OUTPUT directory')
+    return parser.parse_args()
+
+def main():
+    args = parse_args()
+    if args.unpack:
+        unpack_mgr(args.input, args.output)
+    else:
+        pack_mgr(args.input, args.output)
+
+if __name__ == '__main__':
+    main()
